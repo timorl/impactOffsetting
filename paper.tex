@@ -1,0 +1,178 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{todonotes}
+\usepackage{enumerate}
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{definition}{Definition}
+
+\newcommand{\stateSpace}{\mathcal{S}}
+\newcommand{\actionSpace}{\mathcal{A}}
+\newcommand{\rewardSpace}{\mathcal{R}}
+\newcommand{\trasitionFunction}{T}
+\newcommand{\rewardFunction}{R}
+\newcommand{\modifiedRewardFunction}{\rewardFunction_{\mathrm{SEA}}}
+\newcommand{\goalRewardFunction}{\rewardFunction_{\mathrm{Goal}}}
+\newcommand{\generalRewardFunction}{\rewardFunction_{\mathrm{General}}}
+\newcommand{\corruption}{C}
+\newcommand{\deviationFromBaseline}{d}
+\newcommand{\baseline}{b}
+\newcommand{\tuple}[1]{\left\langle #1 \right\rangle}
+\newcommand{\rawMDP}{\stateSpace, \actionSpace, \rewardSpace, \trasitionFunction, \rewardFunction}
+\newcommand{\MDP}{\tuple{\rawMDP}}
+\newcommand{\rawCRMDP}{\rawMDP, \corruption}
+\newcommand{\CRMDP}{\tuple{\rawCRMDP}}
+\newcommand{\rawSCRMDP}{\rawCRMDP, d, \LV}
+\newcommand{\SCRMDP}{\tuple{\rawSCRMDP}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\absoluteValue}[1]{\left\lvert #1 \right\rvert}
+
+\newtheorem{example}{Example}
+
+\title{Impact offsetting}
+\author{Us}
+\date{2021}
+
+\begin{document}
+
+\maketitle
+
+\section{Setting}
+
+ To define offsetting lets first formalize the notion of a misspecified reward. I'm using the below formulation because I already had it lying around.
+
+	\begin{definition}[CRMDP]
+		A \emph{Corrupt Reward Markov Decision Process} (CRMDP) is a tuple $\CRMDP$, where $\stateSpace$ is the set of states,
+		$\actionSpace$ is the set of actions, $\rewardSpace$ is the set of rewards, $\trasitionFunction \colon \stateSpace \times \actionSpace \to P\left( \stateSpace \right)$
+		is the transition function, $\rewardFunction \colon \stateSpace \to \rewardSpace$ is the reward function and $\corruption \colon \stateSpace \to \rewardSpace$ is the corrupt
+		reward. We call $\MDP$ the \emph{underlying MDP} of a given CRMDP.
+		\label{def:CRMDP}
+	\end{definition}
+
+	To model having imprecise rewards we assume we only have access to $\corruption$, while we actually care about the real reward, which we are not able to specify.
+
+	One approach to mitigating the problems arising from the discrepancy is side effect avoidance. We assume that the corrupt reward somewhat correctly specifies the actual goal,
+	but the negative effects of changing the environment are underspecified. Then problematic behaviour might be reduced by correcting for avoiding any side effects of the agent's
+	actions, compared to some baseline. This, however, introduces other biases, namely towards the baseline. We call behaviour stemming from these biases ``offsetting''.
+
+	\begin{definition}[Side effect avoidance]
+		\emph{Side effect avoidance} is a class of approaches for mitigating reward misspecification, which
+		modify the reward passed to the agent according to the equation
+		\begin{equation}
+			\modifiedRewardFunction\left( \left( s_i \right)_{i=0}^t \right) =
+			\corruption\left( s_t \right) - 
+			\lambda \cdot \deviationFromBaseline\left( \left( s_i \right)_{i=0}^t, \baseline\left( \left( s_i \right)_{i=0}^t \right) \right),
+			\label{eq:sideEffectAvoidance}
+		\end{equation}
+		where $t$ is the time step, $s_i$ is the state at time $i$, $\baseline$ is a probability
+		distribution of trajectories of the baseline agent, and $\deviationFromBaseline$ is a measure
+		of the deviation between a trajectory and a baseline distribution of trajectories.
+
+		In practice $\baseline$ either depends on the initial state and the time step
+		(length of trajectory) (Krakovna), or only on the previous state (Turner)	and not both.
+
+		The deviation $\deviationFromBaseline$ is a more involved metric, usually depending on
+		relative state	reachability. All approaches up to now only used the last state
+		in the trajectories under consideration.
+		\label{def:SEA}
+	\end{definition}
+
+	Note that the modified reward function is not only a function of the state, but of
+	the agent's trajectory and some baseline trajectory distribution.
+
+\section{Offsetting}
+
+	Let us consider two policies. The policy optimal with respect to the base available
+	(corrupted) reward $\pi_\corruption$, and the policy optimal with respect to the modified
+	reward $\pi_{\modifiedRewardFunction}$.
+	We can now define a broad version of offsetting.
+	\begin{definition}[Broad offsetting]
+		We call the behaviour of an agent following $\pi_{\modifiedRewardFunction}$ that differs
+		from the behaviour of an agent following $\pi_\corruption$ \emph{broad offsetting}.
+		\label{def:broadOffsetting}
+	\end{definition}
+	Note that under this definition of offsetting we obviously desire \emph{some} offsetting,
+	this was the whole goal of introducing the modified reward in the first place.
+
+	This definition of offsetting also includes interventions in the environment as types
+	of offsetting, e.g. in the Sushi example with the baseline being the initial state repeated
+	forever and any reasonable deviation measure moving the sushi from the belt is broad offsetting.
+
+	I am under the impression that some researchers understand offsetting differently,
+	more based on time -- e.g. Krakovna's formulates it as ``undoing actions''.
+	I propose that this definition cannot be made consistent with the examples used
+	and some other natural ones.
+
+	\begin{example}[Safety door]
+		An agent's task is to turn on a machine in a factory. The factory has a safety door that
+		closes whenever the machine is engaged. For some deviation measures the agent will be
+		incentivized to block the door from closing if it is impossible to open it afterwards.
+
+		This is clearly not ``undoing'' an action, but calling it offsetting seems appropriate.
+	\label{eg:factory}
+	\end{example}
+
+	From now I will just write offsetting, omitting the \emph{broad} qualifier.
+
+	\subsection{Desirable vs undesirable offsetting}
+		Under the above definition it is clear that some offsetting is desirable, while some is not.
+		The formal distinction here is as obvious as useless -- desirable offsetting consists of these
+		differences which increase the real reward $\rewardFunction$, while undesirable
+		offsetting decreases it. The challenge lies in categorizing these types of offsetting
+		without access to the real reward. This requires some assumptions about $\corruption$, as
+		well as the baseline.
+
+		\begin{definition}[Goal-correct reward]
+			We postulate that the real reward function consists of two components
+			\begin{equation*}
+				\rewardFunction = \goalRewardFunction + \generalRewardFunction
+			\end{equation*}
+			where $\goalRewardFunction$ is all the reward received in connection to the goal that
+			the agent was supposed to achieve, while $\generalRewardFunction$ is all the background
+			reward function implying that vases shouldn't be broken etc.
+
+			% Is this too narrow?
+			We call a corrupt reward $\corruption$ \emph{goal-correct} if it is equal
+			to $\goalRewardFunction$.
+			\label{def:goalCorrect}
+		\end{definition}
+
+		Note that this definition is mathematically vacuous, it only works as an intuition,
+		and even then it's unclear. Consider Example \ref{eg:factory} -- is the door closing
+		a part of the goal in the sense that having a negative or lesser reward if it didn't
+		close is required for the reward to be goal-correct?
+
+		\begin{definition}[Human compatible baseline]
+			We call a baseline $\baseline$ \emph{human compatible} if the expected cumulative reward
+			$\generalRewardFunction$ over it is not lower than the natural evolution's of the environment.
+			\label{def:humanCompatible}
+		\end{definition}
+
+		I am sneaking in an assumption in the name that lies at the base of the whole
+		side-effect avoidance effort -- the environments in which the agent is acting are already
+		at least somewhat optimized for humans, so not modifying them is an acceptable action.
+
+		Both the most recent approaches of Krakovna and Turner are trying to pick human compatible
+		baselines, usually by making the agent not act. In the case of Krakovna it is not acting
+		since the beginning of the trajectory, while in case of Turner it is not acting for a single step.
+
+		Krakovna's position seems to be that if the reward is goal-correct and the baseline is
+		human compatible, then all offsetting is desirable. This might be true in theory, but
+		due to the unclear boundaries as to what counts as connected to the goal it does not
+		really solve the problem in practice. Either we assume that we have to perfectly specify
+		\emph{all} intended consequences of the goal being reached (which is probably not feasible
+		in sufficiently complicated environments) or some will slip through the cracks.
+
+		The obvious counterargument is that side effect avoidance is only supposed to mitigate
+		problems not solve them completely. From this point of view we end up with a \emph{safer}
+		AI, even if not with an actually \emph{safe} one.
+\section{Onsetting?}
+ Do we want to relax the goal-correctness assumptions on the specified reward and try to infer
+	a more goal-correct version of the reward?
+
+\end{document}
