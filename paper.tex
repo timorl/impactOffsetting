@@ -17,8 +17,8 @@
 \newcommand{\trasitionFunction}{T}
 \newcommand{\rewardFunction}{R}
 \newcommand{\modifiedRewardFunction}{\rewardFunction_{\mathrm{SEA}}}
-\newcommand{\goalRewardFunction}{\rewardFunction_{\mathrm{Goal}}}
 \newcommand{\generalRewardFunction}{\rewardFunction_{\mathrm{General}}}
+\newcommand{\inactionRewardFunction}{\rewardFunction_{\mathrm{Inaction}}}
 \newcommand{\corruption}{C}
 \newcommand{\deviationFromBaseline}{d}
 \newcommand{\baseline}{b}
@@ -64,26 +64,36 @@
 		\emph{Side effect avoidance} is a class of approaches for mitigating reward misspecification, which
 		modify the reward passed to the agent according to the equation
 		\begin{equation}
-			\modifiedRewardFunction\left( \left( s_i \right)_{i=0}^t \right) =
-			\corruption\left( s_t \right) - 
-			\lambda \cdot \deviationFromBaseline\left( \left( s_i \right)_{i=0}^t, \baseline\left( \left( s_i \right)_{i=0}^t \right) \right),
+			\modifiedRewardFunction\left(  s_t \right) =
+			\corruption\left( s_t \right) -
+			\lambda \cdot \deviationFromBaseline\left( s_t, \baseline\left( s_t \right) \right),
 			\label{eq:sideEffectAvoidance}
 		\end{equation}
 		where $t$ is the time step, $s_i$ is the state at time $i$, $\baseline$ is a probability
-		distribution of trajectories of the baseline agent, and $\deviationFromBaseline$ is a measure
-		of the deviation between a trajectory and a baseline distribution of trajectories.
-
-		In practice $\baseline$ either depends on the initial state and the time step
-		(length of trajectory) (Krakovna), or only on the previous state (Turner)	and not both.
-
-		The deviation $\deviationFromBaseline$ is a more involved metric, usually depending on
-		relative state	reachability. All approaches up to now only used the last state
-		in the trajectories under consideration.
+		distribution of states of the baseline agent, and $\deviationFromBaseline$ is a measure
+		of the deviation between a state and a baseline distribution of states.
 		\label{def:SEA}
 	\end{definition}
+	In practice the above definition should be non-Markovian, see appendix.
+	In short, $\baseline$ either depends on the initial state and the time step
+	(length of trajectory) (Krakovna), or only on the previous state (Turner).
 
-	Note that the modified reward function is not only a function of the state, but of
-	the agent's trajectory and some baseline trajectory distribution.
+	The deviation $\deviationFromBaseline$ is quite an involved metric in practice,
+	usually depending on	relative state	reachability.
+
+	Let us define one more concept which will be useful later.
+
+	\begin{definition}[Baseline reward]
+		Let $\baseline \colon \stateSpace \to P\left( \stateSpace \right)$ be a fixed baseline function.
+		For any reward function $\rewardFunction$ we write
+		\begin{equation*}
+			\rewardFunction^\baseline\left( s \right) =
+			\mathbb{E}_{s' \in \baseline\left( s \right)} \rewardFunction\left( s' \right).
+		\end{equation*}
+		\label{def:baselineReward}
+	\end{definition}
+	The baseline function is supposed to encode what state we expect the agent following
+	the baseline policy would have reached at the point when the actual agent reached state $s$.
 
 \section{Offsetting}
 
@@ -122,57 +132,132 @@
 	\subsection{Desirable vs undesirable offsetting}
 		Under the above definition it is clear that some offsetting is desirable, while some is not.
 		The formal distinction here is as obvious as useless -- desirable offsetting consists of these
-		differences which increase the real reward $\rewardFunction$, while undesirable
+		differences which increase the real reward, while undesirable
 		offsetting decreases it. The challenge lies in categorizing these types of offsetting
 		without access to the real reward. This requires some assumptions about $\corruption$, as
 		well as the baseline.
 
-		\begin{definition}[Goal-correct reward]
-			We postulate that the real reward function consists of two components
-			\begin{equation*}
-				\rewardFunction = \goalRewardFunction + \generalRewardFunction
-			\end{equation*}
-			where $\goalRewardFunction$ is all the reward received in connection to the goal that
-			the agent was supposed to achieve, while $\generalRewardFunction$ is all the background
-			reward function implying that vases shouldn't be broken etc.
+		\begin{definition}[General reward function]
+			Let us assume a completely utilitarian framework. In this framework the creator
+			of an agent has a clear utility function over all states and would like the
+			agent to act according to this utility function. Let us call this function the
+			\emph{general reward function} and denote it $\generalRewardFunction$.
 
-			% Is this too narrow?
-			We call a corrupt reward $\corruption$ \emph{goal-correct} if it is equal
-			to $\goalRewardFunction$.
-			\label{def:goalCorrect}
+			I am terribly sorry for dismissing the phiosophical problems with the above
+			for the purposes of this discussion.
+			\label{def:morality}
 		\end{definition}
 
-		Note that this definition is mathematically vacuous, it only works as an intuition,
-		and even then it's unclear. Consider Example \ref{eg:factory} -- is the door closing
-		a part of the goal in the sense that having a negative or lesser reward if it didn't
-		close is required for the reward to be goal-correct?
+		We obviously cannot specify $\generalRewardFunction$ fully, it is not clear anyopne
+		actually has such a view of what they want, and encoding it as a utility function is
+		a separate challenge that	is also mostly untouched. 
+		%maybe need some citations with actual attempts?
 
-		\begin{definition}[Human compatible baseline]
-			We call a baseline $\baseline$ \emph{human compatible} if the expected cumulative reward
-			$\generalRewardFunction$ over it is not lower than the natural evolution's of the environment.
-			\label{def:humanCompatible}
+		On the other hand we \emph{can} bound the changes to that function -- just by assuming
+		it is a utility function on states we made the approach pretty obvious: minimize the
+		changes to the states. This is exactly the route side effect avoidance takes.
+
+		\begin{definition}[Inaction reward function]
+			We call a reward that tries to minimize the effect on $\generalRewardFunction$ of an agent
+			by minimizing changes to states an \emph{inaction reward function} and denote it by
+			$\inactionRewardFunction$.
+			\label{def:inactionReward}
 		\end{definition}
 
-		I am sneaking in an assumption in the name that lies at the base of the whole
-		side-effect avoidance effort -- the environments in which the agent is acting are already
-		at least somewhat optimized for humans, so not modifying them is an acceptable action.
+		Note that in the case of side effect avoidance approaches this is the second term of
+		\eqref{eq:sideEffectAvoidance}, i.e.
+		\begin{equation*}
+			\inactionRewardFunction\left( s \right) =
+			-\lambda \cdot \deviationFromBaseline\left( s, \baseline\left( s \right) \right).
+		\end{equation*}
+		This is a family of inaction reward functions and the arbitrariness of the choice of $\lambda$,
+		$\deviationFromBaseline$, and $\baseline$ means it is not in any way canonical.
 
-		Both the most recent approaches of Krakovna and Turner are trying to pick human compatible
-		baselines, usually by making the agent not act. In the case of Krakovna it is not acting
-		since the beginning of the trajectory, while in case of Turner it is not acting for a single step.
+		Let us denote the reward function we give the agent to optimize for
+		\begin{equation*}
+			\rewardFunction = \corruption + \inactionRewardFunction.
+		\end{equation*}
+		Note that if we have a goal-independent inaction reward function, we only have to specify
+		$\corruption$, which is exactly what we wanted in the first place.
 
-		Krakovna's position seems to be that if the reward is goal-correct and the baseline is
-		human compatible, then all offsetting is desirable. This might be true in theory, but
-		due to the unclear boundaries as to what counts as connected to the goal it does not
-		really solve the problem in practice. Either we assume that we have to perfectly specify
-		\emph{all} intended consequences of the goal being reached (which is probably not feasible
-		in sufficiently complicated environments) or some will slip through the cracks.
+		If we assume we picked the baseline policy such that an agent behaving according to it
+		is an acceptable fail-case for us, we can see that we would like the agent to only behave
+		differently than the baseline if the general reward of its trajectory is higher than
+		the reward over the baseline. We can formalize a somewhat stronger version of this assumption
+		in a way that makes it somewhat useful for designing rewards provided to the agents.
 
-		The obvious counterargument is that side effect avoidance is only supposed to mitigate
-		problems not solve them completely. From this point of view we end up with a \emph{safer}
-		AI, even if not with an actually \emph{safe} one.
-\section{Onsetting?}
- Do we want to relax the goal-correctness assumptions on the specified reward and try to infer
-	a more goal-correct version of the reward?
+		\begin{definition}[Fallback compatible reward function]
+			For a fixed $\inactionRewardFunction$, we call $\corruption$ \emph{fallback compatible} if
+			\begin{equation}
+				\generalRewardFunction - \generalRewardFunction^\baseline \geq
+				\corruption + \inactionRewardFunction -
+				\corruption^\baseline - \inactionRewardFunction^\baseline.
+			\label{eq:fallbackCompatible}
+			\end{equation}
+			\label{def:fallbackCompatible}
+		\end{definition}
 
+		It is trivial to see that this condition implies that a policy can be optimal with respect to
+		$\rewardFunction$ only if it is either visiting the states within the baseline with the same
+		frequency as the baseline	or states that actually have higher general reward than the baseline
+		states. After all if $\rewardFunction$ is higher at a state than at the corresponding baseline,
+		the above condition implies so is the real reward.
+
+		For the purpose of designing reward functions it might be convenient to assume
+		that $\corruption$ is zero at the baseline. Condition \eqref{eq:fallbackCompatible}
+		becomes somewhat more tractable then
+		\begin{equation*}
+				\generalRewardFunction - \generalRewardFunction^\baseline \geq
+				\corruption + \inactionRewardFunction - \inactionRewardFunction^\baseline.
+		\end{equation*}
+		The easiest way to follow it is to ensure all states encountered
+		when following the baseline have zero reward, which should often be doable.
+
+		We could demand this to be true also for $\inactionRewardFunction$, but the easiest way of
+		doing this I can come up with is subtracting the expectation over the baseline from it.
+		This should actually be quite doable in practice, but no one currently does it.
+		Is it worth it just for the simplicity of equations? Who knows.
+
+		Krakovna's position seems to be that choosing $\corruption$ carefully we can eliminate
+		all undesirable offsetting. This is clearly not true in general, as we would have to specify
+		it exactly in accordance with $\generalRewardFunction$, but it might be true within
+		a specific task, which can be seen as a component of $\generalRewardFunction$. In this
+		approach we identify what component we care about for a specific task, and define
+		$\corruption$ to be that component plus a term nullifying the inaction reward
+		with respect to that component. If we managed to make $\inactionRewardFunction$
+		into an exact reward penalizing changes to $\generalRewardFunction$, this would just be
+		the component times two, but that is impractical to expect.
+
+		The important thing we achieved here is that if we create rewards so that they are fallback
+		compatible, the agents we create will not cause more harm than they would have if they
+		just followed the baseline policy.
+
+	\appendix
+	\section{Non-Markovian rewards}
+	 In the main text I pretended everything is Markovian, but at least Krakovna's original approach
+		is not. A definition that would actually apply to her appraoch is presented below,
+		but was too unwieldy to work with and did not actually provide much insight.
+		\begin{definition}[Side effect avoidance]
+			\emph{Side effect avoidance} is a class of approaches for mitigating reward misspecification, which
+			modify the reward passed to the agent according to the equation
+			\begin{equation}
+				\modifiedRewardFunction\left( \left( s_i \right)_{i=0}^t \right) =
+				\corruption\left( s_t \right) -
+				\lambda \cdot \deviationFromBaseline\left( \left( s_i \right)_{i=0}^t, \baseline\left( \left( s_i \right)_{i=0}^t \right) \right),
+				\label{eq:sideEffectAvoidance-nonMarkov}
+			\end{equation}
+			where $t$ is the time step, $s_i$ is the state at time $i$, $\baseline$ is a probability
+			distribution of trajectories of the baseline agent, and $\deviationFromBaseline$ is a measure
+			of the deviation between a trajectory and a baseline distribution of trajectories.
+
+			In practice $\baseline$ either depends on the initial state and the time step
+			(length of trajectory) (Krakovna), or only on the previous state (Turner)	and not both.
+
+			The deviation $\deviationFromBaseline$ is a more involved metric, usually depending on
+			relative state	reachability. All approaches up to now only used the last state
+			in the trajectories under consideration.
+			\label{def:SEA-nonMarkov}
+		\end{definition}
+		The usual approaches of making environments Markovian could work to completely avoid referring
+		to this definition.
 \end{document}
