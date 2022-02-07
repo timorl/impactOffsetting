@@ -232,7 +232,79 @@
 		compatible, the agents we create will not cause more harm than they would have if they
 		just followed the baseline policy.
 
-	\appendix
+\section{Stochastic side-effect avoidance}
+	This section presents an as of yet unexplored choice for $\baseline$.
+	\subsection{Basic idea}
+	 We would like to answer the counterfactual question ``What would the world look like if we used
+		the baseline policy rather than the policy we actually used?''.
+	 A solution to this problem would be a generator of baseline states that would,
+		given an arbitrary state $s$, produce a distribution of states that could have
+		been encountered instead of $s$.
+
+		There is an obvious degree of freedom in the counterfactual question,
+		even before we get to specifying what the generator should be doing.
+		When should the counterfactual intervention happen? The answer to this
+		question is the main difference between Krakovna's and Turner's approaches
+		-- Krakovna answers ``at the beginning of time'', while Turner ``just a step ago''.
+		Both these answers introduce some problems. I would argue we should be looking at
+		a discounted combination of counterfactual interventions, e.g. rollout using the baseline
+		policy starting at $4^n$ steps ago for $n \in \left\{ 0, \dots, k \right\}$.
+		We should discount the penalties related to these counterfactuals by $2^k$.
+		This avoids the tractability issues with Krakovna's approach, while avoiding the problem
+		with Turner immediately accepting any loss in reversability after the agent is one step away
+		form the decision that caused it.
+
+		(I have a brilliant thought about this corresponding to the sunk cost fallacy, but
+		not enough energy to write this out properly. Soemthingsomething
+		only caring about the last decision makes you miss that your whole policy got you
+		into deep trouble.)
+
+		The generator itself could be trained on random policies with baseline rollouts
+		computed starting from past states. Note that this requires the baseline to
+		necessarily be a complete policy, being able to act in any state. This might
+		be the inaction policy, but that would likely be unsatisfactory as a safe choice
+		in general.
+	\subsection{CVAE}
+		A relatively natural approach to the above problem is to use a slightly modified CVAE.
+		We create a rollout of a random policy $\pi$, of the form $\left( s_0, \dots s_T \right)$.
+		We also create rollouts of the baseline policy $\pi_b$ of the forms
+		\begin{equation*}
+			\left( s^{\left( m \right)}_0 = s_m, \dots, s^{\left( m \right)}_{T-m} \right).
+		\end{equation*}
+		For every $t$ we use $s_t$ as an input to the CVAE, backpropagating a combination of
+		$k$ losses
+		\begin{equation*}
+			L(s_t, s^{\left( t-1 \right)}_{1}, s^{\left( t-4 \right)}_4, \dots, s^{\left( t-4^k \right)}_{4^k}) = \sum_{l = 0}^k 2^{-l}L_{CVAE}\left( s_t, s^{\left( t-4^l \right)}_{4^l} \right)
+		\end{equation*}
+		Where $L_{CVAE}$ is the standard CVAE loss.
+
+		(It might be preferable to actually train $k$ different models, but that is likely to
+		be prohibitively costly and depending on the baseline policy might not be that much more detailed.
+	 Whether this kind of combined training actually converges to something is not quite obvious though.)
+
+		The resulting generator could then be used as $\baseline$ with an arbitrary side-effect avoidance
+		measure, like relative reachability. For a given state it should be likely to return
+		a baseline state corresponding to a possible rollout of the baseline policy from possibly some
+		steps in the past.
+
+		\subsubsection{Doubts}
+		 Does this actually work?
+			\begin{enumerate}
+				\item Does training with $L$ actually create a generator that
+					generates things mostly corresponding to the $l$th argument with about $2^{-l}$
+					probability? Or does this converge to something else, e.g. always the $0$th argument?
+				\item Is it reasonable expect that the CVAE model will be able to ``model'' the whole
+					transformation needed to get from $s_t$ to $s^{\left( t-4^l \right)}_{4^l}$?
+					After all this requires going back $4^l$ steps and back forward using a different policy.
+					Even if we had one model per $l$ this might be a nontrivial task. On the other hand this might
+					be simpler if the baseline policy and undisturbed environment behaviour is simple.
+				\item Variant of the above -- if we use multiple models we could have them generate
+					partial (as in only some steps) trajectories. This I at least know is mostly possible
+					and might improve accuracy and interpretability.
+				\item What about parts of the state space that random policies cannot reach, but the
+					actual policy used by the training agent can. How well will this generalize?
+			\end{enumerate}
+\appendix
 	\section{Non-Markovian rewards}
 	 In the main text I pretended everything is Markovian, but at least Krakovna's original approach
 		is not. A definition that would actually apply to her appraoch is presented below,
