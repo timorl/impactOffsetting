@@ -232,7 +232,7 @@
 		compatible, the agents we create will not cause more harm than they would have if they
 		just followed the baseline policy.
 
-\section{Stochastic side-effect avoidance}
+\section{Stochastic side effect avoidance}
 	This section presents an as of yet unexplored choice for $\baseline$.
 	\subsection{Basic idea}
 	 We would like to answer the counterfactual question ``What would the world look like if we used
@@ -282,7 +282,7 @@
 		be prohibitively costly and depending on the baseline policy might not be that much more detailed.
 	 Whether this kind of combined training actually converges to something is not quite obvious though.)
 
-		The resulting generator could then be used as $\baseline$ with an arbitrary side-effect avoidance
+		The resulting generator could then be used as $\baseline$ with an arbitrary side effect avoidance
 		measure, like relative reachability. For a given state it should be likely to return
 		a baseline state corresponding to a possible rollout of the baseline policy from possibly some
 		steps in the past.
@@ -304,6 +304,38 @@
 				\item What about parts of the state space that random policies cannot reach, but the
 					actual policy used by the training agent can. How well will this generalize?
 			\end{enumerate}
+\section{Are we trying to solve two problems at once?}
+	The approaches used by Krakovna and Turner, due to their choices for $\deviationFromBaseline$,
+	can be summed up as ``Avoid increasing power compared to the baseline.''. This is a pretty natural
+	result of trying to avoid both breaking vases (decreasing everyone's power) and stealing sushi
+	(increasing the agent's power at the cost of the hungry human). However, it has the inconvenient
+	consequence of making us work with nonlinear functions, something everybody hates.
+	An alternative approach is to treat this problem as two separate problems.
+
+	First problem, we want the agent to have power. If it is incentivized to seek power in general,
+	for example using the future tasks paradigm (but not relative to any baseline), it will avoid
+	performing irreversible actions, such as breaking vases. A natural transformation of the approaches
+	of Krakovna and Turner to solving this problem ends up massively simpler than side effect avoidance.
+	We just have to add a term for increasing power to the reward, using future tasks would be linear,
+	and we wouldn't even have to worry about any baselines.
+
+	Second problem, avoiding interference with other agents. Achieving any specific goal almost always
+	requires sacrificing some power, like eating sushi prevents you from using it later. Agents will
+	thus routinely lower everyone's power when achieving their goals. An agent incentivized to increase
+	power would also be incentivized to interfere with all other agents. Preventing this is much harder
+	than the solution to the previous problem, consider for example that agent $A$ cannot even rely
+	on agent $B$'s presence as a clue to whether a specific power-lowering phenomenon is intended by $B$.
+	This would work for eating sushi, but not for automated machinery set up in a factory before agent $A$
+	existed. Considering how much simpler the solution to the first problem is than side effect avoidance,
+	investigating this one might still be worthwhile.
+
+	Note that the approach intensifies a problem in AI alignment commonly mentioned since the very
+	inception of the field -- power seeking is an instrumental goal for sufficiently general
+	agents anyway, so it seems unwise to additionally encourage it.
+
+	On the other hand this might actually increase the capabilities of agents, by explicitly introducing
+	incentives we expect in more capable agents.
+	Has anyone checked that? Worrying thought.
 \appendix
 	\section{Non-Markovian rewards}
 	 In the main text I pretended everything is Markovian, but at least Krakovna's original approach
