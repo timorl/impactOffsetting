@@ -247,25 +247,70 @@
 		question is the main difference between Krakovna's and Turner's approaches
 		-- Krakovna answers ``at the beginning of time'', while Turner ``just a step ago''.
 		Both these answers introduce some problems. I would argue we should be looking at
-		a discounted combination of counterfactual interventions, e.g. rollout using the baseline
-		policy starting at $4^n$ steps ago for $n \in \left\{ 0, \dots, k \right\}$.
-		We should discount the penalties related to these counterfactuals by $2^k$.
-		This avoids the tractability issues with Krakovna's approach, while avoiding the problem
-		with Turner immediately accepting any loss in reversability after the agent is one step away
-		form the decision that caused it.
+		a discounted combination of counterfactual interventions, i.e.
+		\begin{equation}
+			\baseline\left( s_T \right) = \frac{1-\gamma}{\gamma} \sum_{i=1}^T \gamma^{i} \baseline_{s_{T-i}}\left( s_T \right)
+			\label{eq:discountedBaseline}
+		\end{equation}
+		where $\baseline_s$ corresponds to taking state $s$ as the point of counterfactual intervention.
+		In this language Krakovna's baseline is equal to $\baseline_{s_0}$ and Turner's to $\baseline_{s_{T-1}}$.
+		For small-scale experiments these baselines could just be results of parallel rollouts,
+		but generators for them, or even the combined baseline, can in principle also be trained.
+	\subsection{Advantages -- policy vs trajectory baseline}
+	 This approach lessens the problem with Turner immediately accepting any loss in reversability
+		after the agent is one step away from the decision that caused it. Such losses still
+		become less relevant over time, but in a much more gradual way.
 
-		(I have a brilliant thought about this corresponding to the sunk cost fallacy, but
-		not enough energy to write this out properly. Soemthingsomething
-		only caring about the last decision makes you miss that your whole policy got you
-		into deep trouble.)
+		The comparison with Krakovna is more involved. This approach definitely answers some problems
+		related to what ``beginning of episode'' might mean, but in itself it's not a strong reason to
+		favour it. For a better reason one has to notice that Krakovna \emph{de facto} uses a baseline
+		\emph{trajectory} rather than a baseline \emph{policy}. To illustrate why this distinction
+		matters let us discuss an environment:
+		\begin{example}[Charging stations]
+			Consider a gridworld in the shape of a 5 by 5 square. Points $\left( 0,0 \right)$,
+			$\left( 0,2 \right)$, $\left( 4,0 \right)$ contain ``charging stations''. The agent is tasked
+			with picking up pieces of trash randomly appearing in other places on the map.
+		\end{example}
+		This is only a very basic example to illustrate the problems. Also note that it is stochastic --
+		this could be avoided, but the added complications would just muddy the waters.
 
-		The generator itself could be trained on random policies with baseline rollouts
-		computed starting from past states. Note that this requires the baseline to
-		necessarily be a complete policy, being able to act in any state. This might
-		be the inaction policy, but that would likely be unsatisfactory as a safe choice
-		in general.
+		A natural safe baseline for this environment consists of moving to the closest charging station
+		and staying there. However, if the agent originally starts in a specific point (say, $\left( 0,0 \right)$),
+		an agent following Krakovna's approach will be incentivized to always go to that point.
+		The baseline trajectory is always at this point, and the discounting in the future task measure
+		means that the agent will be comparatively penalized for staying at any other point.
+
+		The natural idea to fix it, randomizing the starting state, doesn't quite work. Since the starting states
+		are not symmetric, a uniform distribution over the charging stations introduces at least an incentive
+		to stay away from point $\left( 4,0 \right)$. A uniform distribution over all points is harder
+		to analyse, but the way the resulting behaviour depends on the exact shape of the environment
+		means it will be impossible to consistently recover the intended baseline policy.
+
+		In contrast Turner's approach looks at the last state, thus picking behaviour that makes sense locally.
+		Similarly the discounted combined baseline, although it has some lingering effects from states further
+		back in time.
+
+		This problem in general happens for any situation in which the dynamic system induced by the baseline
+		policy has a set of attractors different from a single point. Then any single trajectory ends up
+		in one of these attractors, and incentives in Krakovna's approach are skewed towards going to that
+		attractor. Another relatively natural example of such situation is a baseline with a patrol route ––
+		in Krakovna's approach the agent would be penalized for being out of sync with the patrol
+		corresponding to the starting state.
+
+		Krakovna mentioned that extending her methods to stochastic environments is one possible
+		avenue of future research. She wasn't quite talking about this specific problem, but I suspect
+		the underlying reason for problems in stochastic environments might be the same. In particular,
+		the example she uses also talks about stochastically combining trajectories being unsatisfactory,
+		and I believe the combined baseline approach should actually work in the sometimes-human-opens-window
+		environment.
+
 	\subsection{CVAE}
-		A relatively natural approach to the above problem is to use a slightly modified CVAE.
+		The generator for the combined baseline could be trained on random policies with
+		baseline policy rollouts	computed starting from past states. For tractability it might
+		be better to sample fewer point baselines, e.g. only one every $4^k$ steps. This requires
+		some rescaling of the discount factors which will be left as an exercise to the implementer.
+
+		A relatively natural approach to this problem is to use a slightly modified CVAE.
 		We create a rollout of a random policy $\pi$, of the form $\left( s_0, \dots s_T \right)$.
 		We also create rollouts of the baseline policy $\pi_b$ of the forms
 		\begin{equation*}
